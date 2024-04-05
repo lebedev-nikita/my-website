@@ -1,6 +1,7 @@
 import "@std/dotenv/load";
 import { $ } from "npm:zx";
 import dayjs from "npm:dayjs";
+import * as path from "@std/path";
 
 const dockerImageName = Deno.env.get("DOCKER_IMAGE_NAME");
 const containerId = Deno.env.get("CONTAINER_ID");
@@ -11,7 +12,14 @@ if (!(containerId && serviceAccountId && dockerImageName)) {
   throw new Error("bad env");
 }
 
-await $`docker build --platform=x86_64 -t ${image} .`;
+const projectPath = path.fromFileUrl(import.meta.resolve("../"));
+const dockerFilePath = path.fromFileUrl(import.meta.resolve("./Dockerfile"));
+
+// Билдим локально, а не в контейнере, иначе вылезает ошибка с @alloc/quick-lru
+// в результате всё равно получаются JS-скрипты, так что без разницы, где их билдить
+await $`deno task build`;
+
+await $`docker build --platform=x86_64 -f ${dockerFilePath} -t ${image} ${projectPath}`;
 await $`docker push ${image}`;
 
 await $`yc serverless container revision deploy \
@@ -19,6 +27,7 @@ await $`yc serverless container revision deploy \
           --service-account-id=${serviceAccountId} \
           --image=${image} \
           --cores 1 \
-          --memory 1GB \
+          --memory 128MB \
+          --core-fraction 5 \
           --concurrency 16
 `;
