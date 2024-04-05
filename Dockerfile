@@ -3,9 +3,8 @@ FROM denoland/deno:1.42.1
 WORKDIR /app
 
 COPY . .
-RUN deno task build
-RUN deno cache main.ts
+RUN deno cache src/main.ts
 
 EXPOSE 8000
 
-CMD ["deno", "run", "-A", "main.ts"]
+CMD ["deno", "run", "-A", "src/main.ts"]
