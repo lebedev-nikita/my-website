@@ -1,0 +1,42 @@
+name: Website
+
+on: 
+  push: 
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: self-hosted
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - run: pwd
+      - run: whoami
+      - run: ls
+      - name: Build Fresh
+        run: deno task build
+      - name: calculate-env
+        id: calculate-env
+        run: |
+          DOCKER_IMAGE_TAG=$(deno eval 'import dayjs from "npm:dayjs";console.log(dayjs().format("YYYY-MM-DDTHH-mm-ss"))')
+          IMAGE=${{vars.DOCKER_IMAGE_NAME}}:$DOCKER_IMAGE_TAG
+          echo "IMAGE=$IMAGE" >> $GITHUB_OUTPUT
+
+      - name: Build Docker Image
+        run: docker build --platform=x86_64 -f .docker/Dockerfile -t ${{steps.calculate-env.outputs.IMAGE}} .
+      - name: Push Docker Image
+        run: docker push ${{steps.calculate-env.outputs.IMAGE}}
+      - name: Deploy to Yandex.Cloud
+        run: |
+          yc serverless container revision deploy \
+            --container-id=${{vars.CONTAINER_ID}} \
+            --service-account-id=${{vars.SERVICE_ACCOUNT_ID}} \
+            --image=${{steps.calculate-env.outputs.IMAGE}} \
+            --cores 1 \
+            --memory 128MB \
+            --core-fraction 5 \
+            --concurrency 16
+
+
+          
+      
